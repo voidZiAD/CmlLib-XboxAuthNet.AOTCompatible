@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using CmlLib.Core.FileExtractors;
 using CmlLib.Core.Installers;
 using CmlLib.Core.Java;
@@ -9,6 +8,9 @@ using CmlLib.Core.Files;
 using CmlLib.Core.Version;
 using CmlLib.Core.VersionLoader;
 using CmlLib.Core.VersionMetadata;
+using System.Diagnostics;
+using System.IO;
+using System.Net;
 
 namespace CmlLib.Core;
 
@@ -30,19 +32,19 @@ public class MinecraftLauncher
     public RulesEvaluatorContext RulesContext { get; set; }
     public VersionMetadataCollection? Versions { get; private set; }
 
-    public MinecraftLauncher() : 
+    public MinecraftLauncher() :
         this(new MinecraftPath())
     {
 
     }
 
-    public MinecraftLauncher(string path) : 
+    public MinecraftLauncher(string path) :
         this(MinecraftLauncherParameters.CreateDefault(new MinecraftPath(path)))
     {
 
     }
 
-    public MinecraftLauncher(MinecraftPath path) : 
+    public MinecraftLauncher(MinecraftPath path) :
         this(MinecraftLauncherParameters.CreateDefault(path))
     {
 
@@ -77,7 +79,7 @@ public class MinecraftLauncher
     }
 
     public async ValueTask<IVersion> GetVersionAsync(
-        string versionName, 
+        string versionName,
         CancellationToken cancellationToken = default)
     {
         if (Versions == null)
@@ -95,7 +97,7 @@ public class MinecraftLauncher
     }
 
     public async ValueTask<IEnumerable<GameFile>> ExtractFiles(
-        string versionName, 
+        string versionName,
         CancellationToken cancellationToken = default)
     {
         var version = await GetVersionAsync(versionName, cancellationToken);
@@ -205,6 +207,7 @@ public class MinecraftLauncher
         CancellationToken cancellationToken = default) =>
         InstallAndBuildProcessAsync(versionName, launchOption, null, null, cancellationToken);
 
+    // === FIX START: MODIFIED THIS METHOD TO BE SMARTER ===
     public async ValueTask<Process> InstallAndBuildProcessAsync(
         string versionName,
         MLaunchOption launchOption,
@@ -212,10 +215,27 @@ public class MinecraftLauncher
         IProgress<ByteProgress>? byteProgress,
         CancellationToken cancellationToken = default)
     {
+        var versionJsonPath = MinecraftPath.GetVersionJsonPath(versionName);
+        var isInstalled = File.Exists(versionJsonPath);
+
+        // If not installed, we must have internet to download it.
+        if (!isInstalled && !System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable())
+        {
+            throw new WebException($"Cannot download version '{versionName}' without an internet connection.");
+        }
+
+        // This will fetch from Mojang if not found locally, or load from the local JSON if it exists.
         var version = await GetVersionAsync(versionName, cancellationToken);
-        await InstallAsync(version, fileProgress, byteProgress, cancellationToken);
+
+        // Only run the full installation process if the version.json was not found initially.
+        if (!isInstalled)
+        {
+            await InstallAsync(version, fileProgress, byteProgress, cancellationToken);
+        }
+
         return BuildProcess(version, launchOption);
     }
+    // === FIX END ===
 
     // legacy api
     public ValueTask<Process> CreateProcessAsync(string versionName, MLaunchOption launchOption) =>
