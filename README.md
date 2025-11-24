@@ -6,3 +6,5 @@ I'd also like to mention, if issues were found, I will probably fix them. I pers
 Credits to [AlphaBs](https://github.com/AlphaBs) and [CmlLib](https://github.com/CmlLib/) for making this in the first place.
 
 Contributions are appreciated, Thank you.
+
+Example/Sample usage can be found on [CmlLib.Core](https://github.com/CmlLib/CmlLib.Core).
